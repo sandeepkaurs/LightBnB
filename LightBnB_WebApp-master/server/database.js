@@ -17,7 +17,7 @@ pool.connect()
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithEmail = function(email) {
-  const queryString = `SELECT * FROM users WHERE users.email = ${1}`
+  const queryString = `SELECT * FROM users WHERE users.email = $1`
   return pool.query(queryString, [email]).then(res => {
     if(res.rows) {
       return res.rows[0];
@@ -37,7 +37,7 @@ exports.getUserWithEmail = getUserWithEmail;
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithId = function(id) {
-  const queryString = `SELECT * FROM users WHERE users.id = ${1}`;
+  const queryString = `SELECT * FROM users WHERE users.id = $1`;
   return pool.query(queryString, [id])
     .then(res => {
       if (res.rows) {
@@ -57,7 +57,7 @@ exports.getUserWithId = getUserWithId;
  * @return {Promise<{}>} A promise to the user.
  */
 const addUser =  function(user) {
-  const queryString = `INSERT INTO users (name, email, password) VALUES (${1}, ${2}, ${3}) RETURNING *;`;
+  const queryString = `INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *;`;
   const values = [user.name, user.email, user.password];
   return pool.query(queryString, values)
     .then(res => {
@@ -80,7 +80,7 @@ const getAllReservations = function(guest_id, limit = 10) {
   const queryString = `SELECT properties.*, reservations.*, avg(rating) as average rating FROM reservations
   JOIN properties ON reservations.property_id = properties.id
   JOIN property_reviews ON properties.id = property_reviews.property_id
-  WHERE reservations.guest_id = ${1} AND reservations.end_date < now()::date GROUP BY properties.id, reservations.id ORDER BY reservations.start_date LIMIT $;`;
+  WHERE reservations.guest_id = $1 AND reservations.end_date < now()::date GROUP BY properties.id, reservations.id ORDER BY reservations.start_date LIMIT $2;`;
   const values = [guest_id, limit];
   return pool.query(queryString, values)
     .then(res => {
@@ -108,28 +108,21 @@ const getAllProperties = function (options, limit = 10) {
   SELECT properties.*, avg(property_reviews.rating) as average_rating
   FROM properties
   JOIN property_reviews ON properties.id = property_id
+  WHERE true
   `;
 
   // 3
   if (options.city) {
     queryParams.push(`%${options.city}%`);
-    queryString += `WHERE city LIKE $${queryParams.length} `;
+    queryString += `AND city LIKE $${queryParams.length} `;
   }
   if (options.owner_id) {
     queryParams.push(options.owner_id);
-    if (queryParams.length === 1) {
-      queryString += `WHERE owner_id = $${queryParams.length}`;
-    } else {
       queryString += `AND owner_id = $${queryParams.length}`;
-    }
   }
   if (options.minimum_price_per_night && options.maximum_price_per_night) {
     queryParams.push(options.minimum_price_per_night * 100, options.maximum_price_per_night * 100);
-    if (queryParams.length === 1) {
-      queryString += `WHERE cost_per_night >= $${queryParams.length - 1} AND cost_per_night <= $${queryParams.length}`;
-    } else {
-      queryString += `AND cost_per_night >= $${queryParams.length - 1} AND cost_per_night <= $${queryParams.length}`;
-    }
+   queryString += `AND cost_per_night >= $${queryParams.length - 1} AND cost_per_night <= $${queryParams.length}`;
   }
 
   // 4
@@ -161,9 +154,17 @@ exports.getAllProperties = getAllProperties;
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
+  const queryString = `INSERT INTO properties (owner_id, title, description, thumbnail_photo_url, cover_photo_url, cost_per_night, parking_spaces, number_of_bathrooms, number_of_bedrooms, country, street, city, province, post_code)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;`;
+  
+  const values = [property.owner_id, property.title, property.description, property.thumbnail_photo_url, property.cover_photo_url, property.cost_per_night, property.parking_spaces, property.number_of_bathrooms, property.number_of_bedrooms, property.country, property.street, property.city. property.province, property.post_code];
+
+  return pool.query(queryString, values)
+    .then(res => {
+      return res.rows[0];
+    }) 
+    .catch(err => {
+      return console.log(`query error:`, err);
+    })
 }
 exports.addProperty = addProperty;
